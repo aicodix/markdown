@@ -90,7 +90,7 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 		return
 	}
 	title := d.Name()
-	meta := ""
+	head := ""
 	scanner := bufio.NewScanner(bytes.NewReader(b))
 	for scanner.Scan() {
 		tmp := strings.SplitN(scanner.Text(), "]: # (", 2)
@@ -105,8 +105,8 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 		switch key {
 		case "title":
 			title = value
-		case "meta":
-			meta += "<meta " + value + " />\n"
+		case "head":
+			head += value + "\n"
 		}
 	}
 	output := `<!DOCTYPE html>
@@ -114,7 +114,7 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 <head>
 <meta charset="UTF-8">
 <title>` + title + `</title>
-` + meta + `</head>
+` + head + `</head>
 <body>
 ` + string(blackfriday.Run(b)) + `
 </body>
