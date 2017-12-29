@@ -114,6 +114,7 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 <head>
 <meta charset="UTF-8">
 <title>` + title + `</title>
+<link rel="stylesheet" type="text/css" href="/style.css" />
 ` + head + `</head>
 <body>
 ` + string(blackfriday.Run(b)) + `
