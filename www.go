@@ -93,13 +93,20 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 	meta := ""
 	scanner := bufio.NewScanner(bytes.NewReader(b))
 	for scanner.Scan() {
-		if strings.HasSuffix(scanner.Text(), ")") {
-			tmp := strings.TrimSuffix(scanner.Text(), ")")
-			if strings.HasPrefix(tmp, "[title]: # (") {
-				title = strings.TrimPrefix(tmp, "[title]: # (")
-			} else if strings.HasPrefix(tmp, "[meta]: # (") {
-				meta += "<meta " + strings.TrimPrefix(tmp, "[meta]: # (") + " />\n"
-			}
+		tmp := strings.SplitN(scanner.Text(), "]: # (", 2)
+		if len(tmp) != 2 { break }
+
+		if !strings.HasPrefix(tmp[0], "[") { break }
+		key := strings.TrimPrefix(tmp[0], "[")
+
+		if !strings.HasSuffix(tmp[1], ")") { break }
+		value := strings.TrimSuffix(tmp[1], ")")
+
+		switch key {
+		case "title":
+			title = value
+		case "meta":
+			meta += "<meta " + value + " />\n"
 		}
 	}
 	output := `<!DOCTYPE html>
