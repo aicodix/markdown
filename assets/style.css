@@ -1,6 +1,11 @@
 code {
 	color: black;
 	background-color: silver;
+	padding: 2px;
+}
+pre {
+	color: black;
+	background-color: silver;
 	display: block;
-	padding: 20px;
+	padding: 10px;
 }
