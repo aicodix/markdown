@@ -54,9 +54,13 @@ func (f *markdownHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		upath = "/" + upath
 		r.URL.Path = upath
 	}
-	// TODO: check if fs has index.md
 	if strings.HasSuffix(upath, "/") {
-		upath += "index.md"
+		index := upath + "index.md"
+		file, err := f.root.Open(index)
+		if err == nil {
+			file.Close()
+			upath = index
+		}
 	}
 	if !strings.HasSuffix(upath, ".md") {
 		f.fsrv.ServeHTTP(w, r)
