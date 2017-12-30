@@ -96,6 +96,18 @@ func parseMetadata(r io.Reader) (string, string) {
 	return title, head
 }
 
+func fillInTheBlanks(head, body string) string {
+	return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" type="text/css" href="/style.css" />
+` + head + `</head>
+<body>
+` + body + `</body>
+</html>`
+}
+
 func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, name string) {
 	f, err := fs.Open(name)
 	if err != nil {
@@ -122,18 +134,9 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 	}
 	title, head := parseMetadata(bytes.NewReader(b))
 	if title == "" { title = d.Name() }
-	output := `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>` + title + `</title>
-<link rel="stylesheet" type="text/css" href="/style.css" />
-` + head + `</head>
-<body>
-` + string(blackfriday.Run(b)) + `
-</body>
-</html>`
-	reader := bytes.NewReader([]byte(output))
+	head += `<title>` + title + `</title>`
+	body := string(blackfriday.Run(b))
+	reader := bytes.NewReader([]byte(fillInTheBlanks(head, body)))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	http.ServeContent(w, r, d.Name(), d.ModTime(), reader)
 }
