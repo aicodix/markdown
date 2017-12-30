@@ -9,6 +9,7 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 
 package main
 import (
+	"io"
 	"os"
 	"path"
 	"bytes"
@@ -69,6 +70,32 @@ func (f *markdownHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	serveMarkdown(w, r, f.root, path.Clean(upath))
 }
 
+func parseMetadata(r io.Reader) (string, string) {
+	title := ""
+	head := ""
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		tmp := strings.SplitN(scanner.Text(), "]: # (", 2)
+		if len(tmp) != 2 { return title, head }
+
+		if !strings.HasPrefix(tmp[0], "[") { return title, head }
+		key := strings.TrimPrefix(tmp[0], "[")
+
+		if !strings.HasSuffix(tmp[1], ")") { return title, head }
+		value := strings.TrimSuffix(tmp[1], ")")
+
+		switch key {
+		case "title":
+			title = value
+		case "head":
+			head += value + "\n"
+		default:
+			return title, head
+		}
+	}
+	return title, head
+}
+
 func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, name string) {
 	f, err := fs.Open(name)
 	if err != nil {
@@ -93,26 +120,8 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	title := d.Name()
-	head := ""
-	scanner := bufio.NewScanner(bytes.NewReader(b))
-	for scanner.Scan() {
-		tmp := strings.SplitN(scanner.Text(), "]: # (", 2)
-		if len(tmp) != 2 { break }
-
-		if !strings.HasPrefix(tmp[0], "[") { break }
-		key := strings.TrimPrefix(tmp[0], "[")
-
-		if !strings.HasSuffix(tmp[1], ")") { break }
-		value := strings.TrimSuffix(tmp[1], ")")
-
-		switch key {
-		case "title":
-			title = value
-		case "head":
-			head += value + "\n"
-		}
-	}
+	title, head := parseMetadata(bytes.NewReader(b))
+	if title == "" { title = d.Name() }
 	output := `<!DOCTYPE html>
 <html>
 <head>
