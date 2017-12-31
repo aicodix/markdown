@@ -25,6 +25,7 @@ func hostname() string { return "localhost" }
 func assets() string { return "assets" }
 func certificate() string { return "cer" }
 func private_key() string { return "key" }
+func template_html(string) string { return "/template.html" }
 
 func redirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "https://" + hostname() + r.URL.Path, http.StatusMovedPermanently)
@@ -97,17 +98,16 @@ func parseMetadata(r io.Reader) (string, string) {
 	return title, head
 }
 
-func fillInTheBlanks(head, body string) (string, error) {
-	t := `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<link rel="stylesheet" type="text/css" href="/style.css" />
-<!--here--></head>
-<body>
-<!--here--></body>
-</html>`
-	s := strings.Split(t, "<!--here-->")
+func fillInTheBlanks(fs http.FileSystem, name, head, body string) (string, error) {
+	f, err := fs.Open(name)
+	if err != nil { return "", err }
+	defer f.Close()
+	d, err := f.Stat()
+	if err != nil { return "", err }
+	if d.IsDir() { return "", errors.New("Not a file") }
+	b, err := ioutil.ReadAll(f)
+	if err != nil { return "", err }
+	s := strings.Split(string(b), "<!--here-->")
 	if len(s) != 3 { return "", errors.New("Template error") }
 	return s[0] + head + s[1] + body + s[2], nil
 }
@@ -138,9 +138,9 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 	}
 	title, head := parseMetadata(bytes.NewReader(b))
 	if title == "" { title = d.Name() }
-	head += `<title>` + title + `</title>`
+	head += "<title>" + title + "</title>\n"
 	body := string(blackfriday.Run(b))
-	output, err := fillInTheBlanks(head, body)
+	output, err := fillInTheBlanks(fs, template_html(name), head, body)
 	if err != nil {
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
