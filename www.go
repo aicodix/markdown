@@ -14,6 +14,7 @@ import (
 	"path"
 	"bytes"
 	"bufio"
+	"errors"
 	"strings"
 	"net/http"
 	"io/ioutil"
@@ -96,16 +97,19 @@ func parseMetadata(r io.Reader) (string, string) {
 	return title, head
 }
 
-func fillInTheBlanks(head, body string) string {
-	return `<!DOCTYPE html>
+func fillInTheBlanks(head, body string) (string, error) {
+	t := `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <link rel="stylesheet" type="text/css" href="/style.css" />
-` + head + `</head>
+<!--here--></head>
 <body>
-` + body + `</body>
+<!--here--></body>
 </html>`
+	s := strings.Split(t, "<!--here-->")
+	if len(s) != 3 { return "", errors.New("Template error") }
+	return s[0] + head + s[1] + body + s[2], nil
 }
 
 func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, name string) {
@@ -136,7 +140,12 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 	if title == "" { title = d.Name() }
 	head += `<title>` + title + `</title>`
 	body := string(blackfriday.Run(b))
-	reader := bytes.NewReader([]byte(fillInTheBlanks(head, body)))
+	output, err := fillInTheBlanks(head, body)
+	if err != nil {
+		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	reader := bytes.NewReader([]byte(output))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	http.ServeContent(w, r, d.Name(), d.ModTime(), reader)
 }
