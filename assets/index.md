@@ -1,5 +1,5 @@
 
-Congratulations, the markdown webserver works!
+# Congratulations, the markdown web server works!
 
 Documentation: [README](README.md)
 
@@ -10,5 +10,6 @@ Examples: [Dragon curve](dragon.md)
 
 Using metadata disguised as links, we can add and change tags from the HTML head:
 
-[Meta refresh](refresh.md) [Custom title](title.md)
+* [Meta refresh](refresh.md)
+* [Custom title](title.md)
 
