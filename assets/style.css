@@ -1,3 +1,11 @@
+body {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+article {
+	display: inline-block;
+}
 code {
 	color: black;
 	background-color: silver;
