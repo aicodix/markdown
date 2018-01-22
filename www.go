@@ -95,16 +95,8 @@ func parseMetadata(r io.Reader) (string, string) {
 	return title, head
 }
 
-func fillInTheBlanks(fs http.FileSystem, name, head, body string) (string, error) {
-	tl_file, err := fs.Open(name)
-	if err != nil { return "", err }
-	defer tl_file.Close()
-	tl_stat, err := tl_file.Stat()
-	if err != nil { return "", err }
-	if tl_stat.IsDir() { return "", errors.New("Not a file") }
-	tl_bytes, err := ioutil.ReadAll(tl_file)
-	if err != nil { return "", err }
-	s := strings.Split(string(tl_bytes), "<!--here-->")
+func fillInTheBlanks(tmpl, head, body string) (string, error) {
+	s := strings.Split(tmpl, "<!--here-->")
 	if len(s) != 3 { return "", errors.New("Template error") }
 	return s[0] + head + s[1] + body + s[2], nil
 }
@@ -133,11 +125,35 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
+	tl_file, err := fs.Open(template_html(name))
+	if err != nil {
+		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	defer tl_file.Close()
+
+	tl_stat, err := tl_file.Stat()
+	if err != nil {
+		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if tl_stat.IsDir() {
+		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	tl_bytes, err := ioutil.ReadAll(tl_file)
+	if err != nil {
+		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	tmpl := string(tl_bytes)
+
 	title, head := parseMetadata(bytes.NewReader(md_bytes))
 	if title == "" { title = md_stat.Name() }
 	head += "<title>" + title + "</title>\n"
 	body := string(blackfriday.Run(md_bytes))
-	output, err := fillInTheBlanks(fs, template_html(name), head, body)
+	output, err := fillInTheBlanks(tmpl, head, body)
 	if err != nil {
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
