@@ -120,6 +120,7 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	md_modtime := md_stat.ModTime()
 	md_bytes, err := ioutil.ReadAll(md_file)
 	if err != nil {
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
@@ -142,12 +143,16 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	tl_modtime := tl_stat.ModTime()
 	tl_bytes, err := ioutil.ReadAll(tl_file)
 	if err != nil {
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 	tmpl := string(tl_bytes)
+
+	modtime := md_modtime
+	if modtime.Before(tl_modtime) { modtime = tl_modtime }
 
 	title, head := parseMetadata(bytes.NewReader(md_bytes))
 	if title == "" { title = md_stat.Name() }
@@ -160,7 +165,7 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 	}
 	reader := bytes.NewReader([]byte(output))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	http.ServeContent(w, r, md_stat.Name(), md_stat.ModTime(), reader)
+	http.ServeContent(w, r, md_stat.Name(), modtime, reader)
 }
 
 func main() {
