@@ -96,47 +96,47 @@ func parseMetadata(r io.Reader) (string, string) {
 }
 
 func fillInTheBlanks(fs http.FileSystem, name, head, body string) (string, error) {
-	f, err := fs.Open(name)
+	tl_file, err := fs.Open(name)
 	if err != nil { return "", err }
-	defer f.Close()
-	d, err := f.Stat()
+	defer tl_file.Close()
+	tl_stat, err := tl_file.Stat()
 	if err != nil { return "", err }
-	if d.IsDir() { return "", errors.New("Not a file") }
-	b, err := ioutil.ReadAll(f)
+	if tl_stat.IsDir() { return "", errors.New("Not a file") }
+	tl_bytes, err := ioutil.ReadAll(tl_file)
 	if err != nil { return "", err }
-	s := strings.Split(string(b), "<!--here-->")
+	s := strings.Split(string(tl_bytes), "<!--here-->")
 	if len(s) != 3 { return "", errors.New("Template error") }
 	return s[0] + head + s[1] + body + s[2], nil
 }
 
 func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, name string) {
-	f, err := fs.Open(name)
+	md_file, err := fs.Open(name)
 	if err != nil {
 		msg, code := toHTTPError(err)
 		http.Error(w, msg, code)
 		return
 	}
-	defer f.Close()
+	defer md_file.Close()
 
-	d, err := f.Stat()
+	md_stat, err := md_file.Stat()
 	if err != nil {
 		msg, code := toHTTPError(err)
 		http.Error(w, msg, code)
 		return
 	}
-	if d.IsDir() {
+	if md_stat.IsDir() {
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	b, err := ioutil.ReadAll(f)
+	md_bytes, err := ioutil.ReadAll(md_file)
 	if err != nil {
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	title, head := parseMetadata(bytes.NewReader(b))
-	if title == "" { title = d.Name() }
+	title, head := parseMetadata(bytes.NewReader(md_bytes))
+	if title == "" { title = md_stat.Name() }
 	head += "<title>" + title + "</title>\n"
-	body := string(blackfriday.Run(b))
+	body := string(blackfriday.Run(md_bytes))
 	output, err := fillInTheBlanks(fs, template_html(name), head, body)
 	if err != nil {
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
@@ -144,7 +144,7 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 	}
 	reader := bytes.NewReader([]byte(output))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	http.ServeContent(w, r, d.Name(), d.ModTime(), reader)
+	http.ServeContent(w, r, md_stat.Name(), md_stat.ModTime(), reader)
 }
 
 func main() {
