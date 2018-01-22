@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"time"
 	"bytes"
 	"bufio"
 	"errors"
@@ -37,6 +38,33 @@ func toHTTPError(err error) (msg string, httpStatus int) {
 	}
 	// Default:
 	return "500 Internal Server Error", http.StatusInternalServerError
+}
+
+func readFileOrFail(w http.ResponseWriter, fs http.FileSystem, name string) ([]byte, string, time.Time, error) {
+	f, err := fs.Open(name)
+	if err != nil {
+		msg, code := toHTTPError(err)
+		http.Error(w, msg, code)
+		return nil, "", time.Time{}, err
+	}
+	defer f.Close()
+
+	d, err := f.Stat()
+	if err != nil {
+		msg, code := toHTTPError(err)
+		http.Error(w, msg, code)
+		return nil, "", time.Time{}, err
+	}
+	if d.IsDir() {
+		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		return nil, "", time.Time{}, err
+	}
+	b, err := ioutil.ReadAll(f)
+	if err != nil {
+		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		return nil, "", time.Time{}, err
+	}
+	return b, d.Name(), d.ModTime(), nil
 }
 
 type markdownHandler struct {
@@ -102,60 +130,18 @@ func fillInTheBlanks(tmpl, head, body string) (string, error) {
 }
 
 func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, name string) {
-	md_file, err := fs.Open(name)
-	if err != nil {
-		msg, code := toHTTPError(err)
-		http.Error(w, msg, code)
-		return
-	}
-	defer md_file.Close()
+	md_bytes, md_name, md_modtime, err := readFileOrFail(w, fs, name)
+	if err != nil { return }
 
-	md_stat, err := md_file.Stat()
-	if err != nil {
-		msg, code := toHTTPError(err)
-		http.Error(w, msg, code)
-		return
-	}
-	if md_stat.IsDir() {
-		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	md_modtime := md_stat.ModTime()
-	md_bytes, err := ioutil.ReadAll(md_file)
-	if err != nil {
-		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+	tl_bytes, _, tl_modtime, err := readFileOrFail(w, fs, template_html(name))
+	if err != nil { return }
 
-	tl_file, err := fs.Open(template_html(name))
-	if err != nil {
-		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	defer tl_file.Close()
-
-	tl_stat, err := tl_file.Stat()
-	if err != nil {
-		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	if tl_stat.IsDir() {
-		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	tl_modtime := tl_stat.ModTime()
-	tl_bytes, err := ioutil.ReadAll(tl_file)
-	if err != nil {
-		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
-		return
-	}
 	tmpl := string(tl_bytes)
-
 	modtime := md_modtime
 	if modtime.Before(tl_modtime) { modtime = tl_modtime }
 
 	title, head := parseMetadata(bytes.NewReader(md_bytes))
-	if title == "" { title = md_stat.Name() }
+	if title == "" { title = md_name }
 	head += "<title>" + title + "</title>\n"
 	body := string(blackfriday.Run(md_bytes))
 	output, err := fillInTheBlanks(tmpl, head, body)
@@ -165,7 +151,7 @@ func serveMarkdown(w http.ResponseWriter, r *http.Request, fs http.FileSystem, n
 	}
 	reader := bytes.NewReader([]byte(output))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	http.ServeContent(w, r, md_stat.Name(), modtime, reader)
+	http.ServeContent(w, r, md_name, modtime, reader)
 }
 
 func main() {
